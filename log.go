@@ -3,6 +3,8 @@ package db_in_go
 import (
 	"io"
 	"os"
+	"path"
+	"syscall"
 )
 
 type Log struct {
@@ -10,8 +12,30 @@ type Log struct {
 	fp       *os.File
 }
 
+func createFileSync(file string) (*os.File, error) {
+	fp, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	if err = syncDir(path.Base(file)); err != nil {
+		_ = fp.Close()
+		return nil, err
+	}
+	return fp, nil
+}
+
+func syncDir(file string) error {
+	flags := os.O_RDONLY | syscall.O_DIRECTORY
+	dirfd, err := syscall.Open(path.Dir(file), flags, 0o644)
+	if err != nil {
+		return err
+	}
+	defer syscall.Close(dirfd)
+	return syscall.Fsync(dirfd)
+}
+
 func (l *Log) Open() (err error) {
-	l.fp, err = os.OpenFile(l.FileName, os.O_CREATE|os.O_RDWR, 0o644)
+	l.fp, err = createFileSync(l.FileName)
 	return err
 }
 
@@ -31,6 +55,8 @@ func (l *Log) Read(ent *Entry) (eof bool, err error) {
 }
 
 func (l *Log) Write(ent *Entry) error {
-	_, err := l.fp.Write(ent.Encode())
-	return err
+	if _, err := l.fp.Write(ent.Encode()); err != nil {
+		return err
+	}
+	return l.fp.Sync()
 }
