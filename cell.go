@@ -46,7 +46,6 @@ func (c *Cell) Decode(data []byte) (rest []byte, err error) {
 			return data, errors.New("expected at least 4 bytes for Str cell")
 		}
 
-		fmt.Println(binary.LittleEndian.Uint32(data[:4]))
 		length := int(binary.LittleEndian.Uint32(data[:4]))
 		if len(data) < 4+length {
 			return data, fmt.Errorf("expected an str of len %d, got %d",
