@@ -29,10 +29,10 @@ func (row Row) EncodeKey(schema *Schema) (key []byte) {
 	key = append(key, []byte(schema.Table)...)
 	key = append(key, 0x00)
 	for i, c := range row {
-		check(c.Type == schema.Cols[i].Type)
 		if !slices.Contains(schema.PKey, i) {
 			continue
 		}
+		check(c.Type == schema.Cols[i].Type)
 		key = c.Encode(key)
 	}
 
@@ -43,10 +43,10 @@ func (row Row) EncodeVal(schema *Schema) (val []byte) {
 	check(len(row) == len(schema.Cols))
 
 	for i, c := range row {
-		check(c.Type == schema.Cols[i].Type)
 		if slices.Contains(schema.PKey, i) {
 			continue
 		}
+		check(c.Type == schema.Cols[i].Type)
 		val = c.Encode(val)
 	}
 

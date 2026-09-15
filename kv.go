@@ -73,7 +73,7 @@ func (kv *KV) SetEx(key []byte, val []byte, mode UpdateMode) (updated bool, err 
 	}
 
 	kv.mem[string(key)] = val
-	updated = !exists || bytes.Equal(prev, val)
+	updated = !bytes.Equal(prev, val)
 	return
 
 }
