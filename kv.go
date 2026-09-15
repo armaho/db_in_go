@@ -21,7 +21,6 @@ func (kv *KV) Open() error {
 			break
 		}
 		if err != nil {
-			print(err.Error())
 			return err
 		}
 
@@ -44,7 +43,25 @@ func (kv *KV) Get(key []byte) (val []byte, ok bool, err error) {
 	return
 }
 
-func (kv *KV) Set(key []byte, val []byte) (updated bool, err error) {
+type UpdateMode int
+
+const (
+	ModeUpsert UpdateMode = 0 // insert or update
+	ModeInsert UpdateMode = 1 // insert new
+	ModeUpdate UpdateMode = 2 // update existing
+)
+
+func (kv *KV) SetEx(key []byte, val []byte, mode UpdateMode) (updated bool, err error) {
+	prev, exists := kv.mem[string(key)]
+
+	if mode == ModeInsert && exists {
+		return false, nil
+	}
+
+	if mode == ModeUpdate && !exists {
+		return false, nil
+	}
+
 	ent := Entry{
 		key:     key,
 		val:     val,
@@ -55,10 +72,14 @@ func (kv *KV) Set(key []byte, val []byte) (updated bool, err error) {
 		return
 	}
 
-	prev, exists := kv.mem[string(key)]
 	kv.mem[string(key)] = val
 	updated = !exists || bytes.Equal(prev, val)
 	return
+
+}
+
+func (kv *KV) Set(key []byte, val []byte) (updated bool, err error) {
+	return kv.SetEx(key, val, ModeUpsert)
 }
 
 func (kv *KV) Del(key []byte) (deleted bool, err error) {
