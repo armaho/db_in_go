@@ -45,7 +45,7 @@ func (l *Log) Close() error {
 
 func (l *Log) Read(ent *Entry) (eof bool, err error) {
 	err = ent.Decode(l.fp)
-	if err == io.EOF {
+	if err == io.EOF || err == ErrBadSum || err == io.ErrUnexpectedEOF {
 		return true, nil
 	}
 	if err != nil {

@@ -1,9 +1,6 @@
 package db_in_go
 
-import (
-	"bytes"
-	"io"
-)
+import "bytes"
 
 type KV struct {
 	log Log
@@ -19,13 +16,13 @@ func (kv *KV) Open() error {
 
 	for {
 		ent := Entry{}
-		err = ent.Decode(kv.log.fp)
+		eof, err := kv.log.Read(&ent)
+		if eof {
+			break
+		}
 		if err != nil {
-			if err == io.EOF {
-				break
-			} else {
-				return err
-			}
+			print(err.Error())
+			return err
 		}
 
 		if ent.deleted {
