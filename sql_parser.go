@@ -1,6 +1,10 @@
 package db_in_go
 
-import "strings"
+import (
+	"errors"
+	"strconv"
+	"strings"
+)
 
 type Parser struct {
 	buf string
@@ -72,6 +76,78 @@ func (p *Parser) tryKeyword(kw string) bool {
 	p.pos += len(kw)
 	p.skipSpace()
 	return true
+}
+
+func (p *Parser) parseInt(out *Cell) error {
+	start := p.pos
+	end := p.pos + 1
+	ch, ok := p.current(), true
+	if ch == '-' || ch == '+' {
+		ch, ok = p.advance()
+		end += 1
+	}
+	if !isDigit(ch) {
+		return errors.New("expected digit after +/-")
+	}
+	for ok && isDigit(ch) {
+		ch, ok = p.advance()
+		if ok {
+			end += 1
+		}
+	}
+
+	if !p.isEnd() && !isSeparator(p.current()) {
+		return errors.New("expected seperator after num")
+	}
+
+	p.skipSpace()
+	num, err := strconv.Atoi(p.buf[start:end])
+	if err != nil {
+		panic("cannot parse num")
+	}
+	out.Type = TypeI64
+	out.I64 = int64(num)
+
+	return nil
+}
+
+func (p *Parser) parseString(out *Cell) error {
+	quote := p.buf[p.pos]
+	cur := p.pos + 1
+	for cur < len(p.buf) {
+		ch := p.buf[cur]
+		if ch == '\\' {
+			cur++
+			if cur < len(p.buf) && (p.buf[cur] == '"' || p.buf[cur] == '\'') {
+				out.Str = append(out.Str, p.buf[cur])
+				cur++
+			} else {
+				return errors.New("bad escape")
+			}
+		} else if ch == quote {
+			out.Type = TypeStr
+			p.pos = cur + 1
+			return nil
+		} else {
+			out.Str = append(out.Str, p.buf[cur])
+			cur++
+		}
+	}
+	return errors.New("string is not terminated")
+}
+
+func (p *Parser) parseValue(out *Cell) error {
+	if p.isEnd() {
+		return errors.New("expect value")
+	}
+	ch := p.current()
+	if ch == '"' || ch == '\'' {
+		return p.parseString(out)
+	} else if isDigit(ch) || ch == '-' || ch == '+' {
+		return p.parseInt(out)
+	} else {
+		return errors.New("expect value")
+	}
 }
 
 func isSeparator(ch byte) bool {
