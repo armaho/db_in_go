@@ -22,18 +22,23 @@ func isSpace(ch byte) bool {
 	}
 	return false
 }
+
 func isAlpha(ch byte) bool {
 	return 'a' <= (ch|32) && (ch|32) <= 'z'
 }
+
 func isDigit(ch byte) bool {
 	return '0' <= ch && ch <= '9'
 }
+
 func isNameStart(ch byte) bool {
 	return isAlpha(ch) || ch == '_'
 }
+
 func isNameContinue(ch byte) bool {
 	return isAlpha(ch) || isDigit(ch) || ch == '_'
 }
+
 func isSeparator(ch byte) bool {
 	return ch < 128 && !isNameContinue(ch)
 }
@@ -131,5 +136,3 @@ func (p *Parser) isEnd() bool {
 	p.skipSpaces()
 	return p.pos >= len(p.buf)
 }
-
-// QzBQWVJJOUhU https://trialofcode.org/
