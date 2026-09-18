@@ -1,14 +1,21 @@
 package db_in_go
 
-import "bytes"
+import (
+	"bytes"
+	"slices"
+)
 
 type KV struct {
 	log Log
-	mem map[string][]byte
+
+	keys [][]byte
+	vals [][]byte
 }
 
 func (kv *KV) Open() error {
-	kv.mem = map[string][]byte{}
+	kv.keys = [][]byte{}
+	kv.vals = [][]byte{}
+	mem := map[string][]byte{}
 	err := kv.log.Open()
 	if err != nil {
 		return err
@@ -25,11 +32,18 @@ func (kv *KV) Open() error {
 		}
 
 		if ent.deleted {
-			delete(kv.mem, string(ent.key))
+			delete(mem, string(ent.key))
 		} else {
-			kv.mem[string(ent.key)] = ent.val
+			mem[string(ent.key)] = ent.val
 		}
 	}
+
+	for key, val := range mem {
+		kv.keys = append(kv.keys, []byte(key))
+		kv.vals = append(kv.vals, val)
+	}
+	slices.SortFunc(kv.keys, bytes.Compare)
+	slices.SortFunc(kv.vals, bytes.Compare)
 
 	return nil
 }
@@ -38,9 +52,16 @@ func (kv *KV) Close() error {
 	return kv.log.fp.Close()
 }
 
-func (kv *KV) Get(key []byte) (val []byte, ok bool, err error) {
-	val, ok = kv.mem[string(key)]
+func (kv *KV) getIdx(key []byte) (idx int, ok bool) {
+	idx, ok = slices.BinarySearchFunc(kv.keys, key, bytes.Compare)
 	return
+}
+
+func (kv *KV) Get(key []byte) (val []byte, ok bool, err error) {
+	if idx, ok := kv.getIdx(key); ok {
+		return kv.vals[idx], true, nil
+	}
+	return nil, false, nil
 }
 
 type UpdateMode int
@@ -52,7 +73,7 @@ const (
 )
 
 func (kv *KV) SetEx(key []byte, val []byte, mode UpdateMode) (updated bool, err error) {
-	prev, exists := kv.mem[string(key)]
+	idx, exists := kv.getIdx(key)
 
 	if mode == ModeInsert && exists {
 		return false, nil
@@ -72,8 +93,14 @@ func (kv *KV) SetEx(key []byte, val []byte, mode UpdateMode) (updated bool, err 
 		return
 	}
 
-	kv.mem[string(key)] = val
-	updated = !bytes.Equal(prev, val)
+	if exists {
+		updated = !bytes.Equal(kv.vals[idx], val)
+		kv.vals[idx] = val
+	} else {
+		updated = true
+		kv.keys = slices.Insert(kv.keys, idx, key)
+		kv.vals = slices.Insert(kv.vals, idx, val)
+	}
 	return
 
 }
@@ -93,7 +120,11 @@ func (kv *KV) Del(key []byte) (deleted bool, err error) {
 		return
 	}
 
-	_, deleted = kv.mem[string(key)]
-	delete(kv.mem, string(key))
+	idx, deleted := kv.getIdx(key)
+	if deleted {
+		kv.keys = slices.Delete(kv.keys, idx, idx+1)
+		kv.vals = slices.Delete(kv.vals, idx, idx+1)
+	}
+
 	return
 }
