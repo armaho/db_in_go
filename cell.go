@@ -20,7 +20,34 @@ type Cell struct {
 	Str  []byte
 }
 
-func (c *Cell) Encode(toAppend []byte) []byte {
+func (c *Cell) EncodeKey(toAppend []byte) []byte {
+	switch c.Type {
+	case TypeI64:
+		return binary.BigEndian.AppendUint64(toAppend, uint64(c.I64)^(1<<63))
+	case TypeStr:
+		return encodeStrKey(toAppend, c.Str)
+	default:
+		panic("invalid type for cell")
+	}
+}
+
+func (c *Cell) DecodeKey(data []byte) (rest []byte, err error) {
+	switch c.Type {
+	case TypeI64:
+		if len(data) < 8 {
+			return data, errors.New("expect more data")
+		}
+		c.I64 = int64(binary.BigEndian.Uint64(data[0:8]) ^ (1 << 63))
+		return data[8:], nil
+	case TypeStr:
+		c.Str, rest, err = decodeStrKey(data)
+		return rest, err
+	default:
+		panic("unreachable")
+	}
+}
+
+func (c *Cell) EncodeVal(toAppend []byte) []byte {
 	switch c.Type {
 	case TypeI64:
 		return binary.LittleEndian.AppendUint64(toAppend, uint64(c.I64))
@@ -32,7 +59,7 @@ func (c *Cell) Encode(toAppend []byte) []byte {
 	}
 }
 
-func (c *Cell) Decode(data []byte) (rest []byte, err error) {
+func (c *Cell) DecodeVal(data []byte) (rest []byte, err error) {
 	switch c.Type {
 	case TypeI64:
 		if len(data) < 8 {
@@ -57,4 +84,36 @@ func (c *Cell) Decode(data []byte) (rest []byte, err error) {
 	default:
 		panic("invalid type for cell")
 	}
+}
+
+func encodeStrKey(toAppend []byte, input []byte) []byte {
+	for _, ch := range input {
+		if ch == 0x00 || ch == 0x01 {
+			toAppend = append(toAppend, 0x01, ch+1)
+		} else {
+			toAppend = append(toAppend, ch)
+		}
+	}
+
+	return append(toAppend, 0x00)
+}
+
+func decodeStrKey(data []byte) (out []byte, rest []byte, err error) {
+	escape := false
+	for i, ch := range data {
+		if escape {
+			if ch != 0x01 && ch != 0x02 {
+				return nil, data, errors.New("bad escape")
+			}
+			out = append(out, ch-1)
+			escape = false
+		} else if ch == 0x00 {
+			return out, data[i+1:], nil
+		} else if ch == 0x01 {
+			escape = true
+		} else {
+			out = append(out, ch)
+		}
+	}
+	return nil, data, errors.New("string is not ended")
 }
