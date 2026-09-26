@@ -128,3 +128,44 @@ func (kv *KV) Del(key []byte) (deleted bool, err error) {
 
 	return
 }
+
+type KVIterator struct {
+	keys [][]byte
+	vals [][]byte
+	pos  int
+}
+
+func (kv *KV) Seek(key []byte) (*KVIterator, error) {
+	pos, _ := slices.BinarySearchFunc(kv.keys, key, bytes.Compare)
+	return &KVIterator{
+		keys: kv.keys,
+		vals: kv.vals,
+		pos:  pos,
+	}, nil
+}
+
+func (iter *KVIterator) Valid() bool {
+	return 0 <= iter.pos && iter.pos < len(iter.keys)
+}
+
+func (iter *KVIterator) Key() []byte {
+	return iter.keys[iter.pos]
+}
+
+func (iter *KVIterator) Val() []byte {
+	return iter.vals[iter.pos]
+}
+
+func (iter *KVIterator) Next() error {
+	if iter.pos < len(iter.keys) {
+		iter.pos++
+	}
+	return nil
+}
+
+func (iter *KVIterator) Prev() error {
+	if iter.pos >= 0 {
+		iter.pos--
+	}
+	return nil
+}
